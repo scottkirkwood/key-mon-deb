@@ -1,0 +1,17 @@
+Package: keymon
+Source: key-mon
+Version: 1.2.2-1
+Architecture: amd64
+Maintainer: Scott Kirkwood <scott@forusers.com>
+Installed-Size: 792
+Depends: python (>= 2.4), python-support (>= 0.90.0), python-xlib, python-gtk2
+Section: graphics
+Priority: optional
+Homepage: http://code.google.com/p/key-mon/
+Description: A screencast utility that displays your keyboard and mouse status
+ Key-mon is useful for teaching since it shows the current status of your
+ keyboard and mouse and you use them in another application.
+ .
+ No longer do you need to say 'Now I'm pressing the Ctrl-D key', your students
+ can just see the keystroke for themselves.
+Python-Version: 2.6
