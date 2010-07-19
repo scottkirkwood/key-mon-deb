@@ -27,7 +27,7 @@ class ShapedWindow(gtk.Window):
   """Create a window shaped as fname."""
   def __init__(self, fname, scale=1.0):
     gtk.Window.__init__(self)
-    self.connect('size-allocate', self._OnSizeAllocate)
+    self.connect('size-allocate', self._on_size_allocate)
     self.set_decorated(False)
     self.set_keep_above(True)
     self.scale = scale
@@ -36,7 +36,7 @@ class ShapedWindow(gtk.Window):
     }
     self.pixbufs = lazy_pixbuf_creator.LazyPixbufCreator(self.name_fnames,
                                                          self.scale)
-    self.pixbuf = self.pixbufs.Get('mouse')
+    self.pixbuf = self.pixbufs.get('mouse')
     self.resize(self.pixbuf.get_width(), self.pixbuf.get_height())
 
     # a pixmap widget to contain the pixmap
@@ -46,7 +46,7 @@ class ShapedWindow(gtk.Window):
     self.image.show()
     self.add(self.image)
 
-  def _OnSizeAllocate(self, win, unused_allocation):
+  def _on_size_allocate(self, win, unused_allocation):
     """Called when first allocated."""
     # Set the window shape
     win.shape_combine_mask(self.mask, 0, 0)
@@ -56,7 +56,7 @@ class ShapedWindow(gtk.Window):
     else:
       win.set_opacity(0.5)
 
-  def FadeAway(self):
+  def fade_away(self):
     """Make the window fade in a little bit."""
     self.present()
     gobject.timeout_add(200, self.hide)
