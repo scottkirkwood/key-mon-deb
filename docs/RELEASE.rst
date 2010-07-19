@@ -1,24 +1,44 @@
 Release Notes
 =============
 
+July 18th, 2010 v 1.2.6
+-----------------------
+* Renamed build_all.py to build.py.
+* Completed Portuguese translations.
+* Created License file and README in portuguese via pybdist.
+
+July 15th, 2010 v 1.2.5
+-----------------------
+* Added some support for internationalization.
+
+July 7th, 2010 v 1.2.4
+----------------------
+* Added missing librsvg2-common to Debian package.
+
+July 4th, 2010 v 1.2.3
+----------------------
+* Changed the style to be more PEP 8 compatible.
+* Fixed a few small bugs.
+* Using new version of pybdist.
+
 June 20th, 2010 v 1.2.2
 -----------------------
 * Added the correct copyright notices.
 
 June 20th, 2010 v 1.2.1
 -----------------------
-* Added icon to the debian install.
+* Added icon to the Debian install.
 
 June 18th, 2010 v 1.2
 ---------------------
-* Added the man page to the debian install.
+* Added the man page to the Debian install.
 * Build is now super automated.
 * Fixed the screenshots.
 
 Jun. 17th, 2010 v 1.1
 ---------------------
 * A little smarter about key names when the keycodes don't seem to match.
-* Fixed and improved the debian install.
+* Fixed and improved the Debian install.
 * Fixed Issue 25. Darken the mouse buttons.
 
 Jun. 13th, 2010 v 1.0

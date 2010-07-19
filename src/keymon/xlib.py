@@ -1,4 +1,27 @@
 #!/usr/bin/python
+#
+# Copyright 2010 Google Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""Library to get X events from Record.
+
+This is designed to read events from X windows for keyboard and mouse
+events.
+"""
+
+__author__ = 'Scott Kirkwood (scott+keymon@forusers.com)'
+
 from Xlib import display
 from Xlib import X
 from Xlib import XK
@@ -8,34 +31,41 @@ import sys
 import threading
 import collections
 
-class XEvent:
+class XEvent(object):
   """An event, mimics edev.py events."""
   def __init__(self, atype, scancode, code, value):
-    self._type = atype;
+    self._type = atype
     self._scancode = scancode
     self._code = code
     self._value = value
 
   def get_type(self):
+    """Get the type of event."""
     return self._type
   type = property(get_type)
 
   def get_scancode(self):
+    """Get the scancode if any."""
     return self._scancode
   scancode = property(get_scancode)
 
   def get_code(self):
+    """Get the code string."""
     return self._code
   code = property(get_code)
 
   def get_value(self):
+    """Get the value 0 for up, 1 for down, etc."""
     return self._value
   value = property(get_value)
 
   def __str__(self):
-    return 'type:%s scancode:%s code:%s value:%s' % (self._type, self._scancode, self._code, self._value)
+    return 'type:%s scancode:%s code:%s value:%s' % (self._type, 
+        self._scancode, self._code, self._value)
 
 class XEvents(threading.Thread):
+  """A thread to queue up X window events from RECORD extension."""
+
   _butn_to_code = collections.defaultdict(lambda: 'BTN_DUNNO',
       [(1, 'BTN_LEFT'), (2, 'BTN_MIDDLE'), (3, 'BTN_RIGHT'),
        (4, 'REL_WHEEL'), (5, 'REL_WHEEL')])
@@ -47,13 +77,15 @@ class XEvents(threading.Thread):
     self.local_display = display.Display()
     self.ctx = None
     self.keycode_to_symbol = collections.defaultdict(lambda: 'KEY_DUNNO')
-    self._SetupLookup()
+    self._setup_lookup()
     self.events = []  # each of type XEvent
 
   def run(self):
-    self.Start()
+    """Standard run method for threading."""
+    self.start_listening()
 
-  def _SetupLookup(self):
+  def _setup_lookup(self):
+    """Setup the key lookups."""
     for name in dir(XK):
       if name[:3] == "XK_":
         code = getattr(XK, name)
@@ -71,7 +103,8 @@ class XEvents(threading.Thread):
       return self.events.pop(0)
     return None
 
-  def Start(self):
+  def start_listening(self):
+    """Start listening to RECORD extension and queuing events."""
     if not self.display.has_extension("RECORD"):
       print "RECORD extension not found"
       sys.exit(1)
@@ -91,39 +124,42 @@ class XEvents(threading.Thread):
             'client_died': False,
         }])
 
-    self.display.record_enable_context(self.ctx, self._Handler)
+    self.display.record_enable_context(self.ctx, self._handler)
 
     # Don't understand this, how can we free the context yet still use it in Stop?
     self.display.record_free_context(self.ctx)
 
-  def Stop(self):
+  def stop_listening(self):
+    """Stop listening to events."""
     if not self._listening:
       return
     self.local_display.record_disable_context(self.ctx)
     self.local_display.flush()
-    self.join(0.1)
+    self.join(0.05)
     self._listening = False
 
-  def Listening(self):
+  def listening(self):
+    """Are you listening?"""
     return self._listening
 
-  def _Handler(self, reply):
+  def _handler(self, reply):
+    """Handle an event."""
     data = reply.data
     while len(data):
       event, data = rq.EventField(None).parse_binary_value(
           data, self.display.display, None, None)
       if event.type == X.ButtonPress:
-        self._HandleMouse(event, 1)
+        self._handle_mouse(event, 1)
       elif event.type == X.ButtonRelease:
-        self._HandleMouse(event, 0)
+        self._handle_mouse(event, 0)
       elif event.type == X.KeyPress:
-        self._HandleKey(event, 1)
+        self._handle_key(event, 1)
       elif event.type == X.KeyRelease:
-        self._HandleKey(event, 0)
+        self._handle_key(event, 0)
       else:
         print event
 
-  def _HandleMouse(self, event, value):
+  def _handle_mouse(self, event, value):
     """Add a mouse event to events.
     Params:
       event: the event info
@@ -140,7 +176,7 @@ class XEvents(threading.Thread):
       self.events.append(XEvent('EV_KEY',
           0, XEvents._butn_to_code[event.detail], value))
 
-  def _HandleKey(self, event, value):
+  def _handle_key(self, event, value):
     """Add key event to events.
     Params:
       event: the event info
@@ -151,20 +187,25 @@ class XEvents(threading.Thread):
       print 'Missing code for %d = %d' % (event.detail - 8, keysym)
     self.events.append(XEvent('EV_KEY', event.detail - 8, self.keycode_to_symbol[keysym], value))
 
-if __name__ == '__main__':
+def _run_test():
+  """Run a test or debug session."""
   print 'Press ESCape to quit'
-  e = XEvents()
-  e.start()
+  events = XEvents()
+  events.start()
   try:
-    while e.Listening():
+    while events.listening():
       try:
-        evt = e.next_event()
+        evt = events.next_event()
       except KeyboardInterrupt:
         print 'User interrupted'
-        e.Stop()
+        events.stop_listening()
       if evt:
         print evt
         if evt.code == 'KEY_ESCAPE':
-          e.Stop()
+          events.stop_listening()
   finally:
-    e.Stop()
+    events.stop_listening()
+
+
+if __name__ == '__main__':
+  _run_test()
