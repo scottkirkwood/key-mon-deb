@@ -18,11 +18,11 @@
 
 __author__ = 'scott@forusers.com (Scott Kirkwood)'
 
+import gettext
 import gobject
 import gtk
-import config
-import gettext
 import logging
+import os
 
 LOG = logging.getLogger('settings')
 
@@ -35,10 +35,12 @@ class SettingsDialog(gtk.Dialog):
           gobject.SIGNAL_RUN_LAST, gobject.TYPE_NONE, ())
   }
 
-  def __init__(self, view):
-    gtk.Dialog.__init__(self, title='Preferences', parent=view,
-        flags=gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT,
+  def __init__(self, unused_view, options):
+    gtk.Dialog.__init__(self, title='Preferences', parent=None,
+        flags=gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT |
+        gtk.WIN_POS_MOUSE,
         buttons=(gtk.STOCK_CLOSE, gtk.RESPONSE_CLOSE))
+    self.options = options
     self.set_default_size(350, 350)
     self.connect('response', self._response)
     self.notebook = gtk.Notebook()
@@ -79,55 +81,71 @@ class CommonFrame(gtk.Frame):
     """Do nothing."""
     pass
 
-  def _add_check(self, vbox, title, option, sub_option):
+  def _add_check(self, vbox, title, tooltip, option):
     """Add a check button."""
     check_button = gtk.CheckButton(label=title)
-    val = config.get(option, sub_option, bool)
-    logging.info('got option %s/%s as %s', option, sub_option, val)
+    val = getattr(self.settings.options, option)
+    logging.info('got option %s as %s', option, val)
     if val:
       check_button.set_active(True)
     else:
       check_button.set_active(False)
-    check_button.connect('toggled', self._toggled, option, sub_option)
+    check_button.connect('toggled', self._toggled, option)
+    check_button.set_tooltip_text(tooltip)
     vbox.pack_start(check_button, False, False)
 
-  def _add_dropdown(self, vbox, title, opt_lst, option, sub_option):
-    """Add a dropdown box."""
+  def _add_dropdown(self, vbox, title, tooltip, opt_lst, option):
+    """Add a drop down box."""
     hbox = gtk.HBox()
     label = gtk.Label(title)
+    label.set_tooltip_text(tooltip)
     hbox.pack_start(label, expand=False, fill=False)
 
     combo = gtk.combo_box_new_text()
     for opt in opt_lst:
       combo.append_text(str(opt))
-    val = config.get(option, sub_option, int)
-    combo.set_active(val)
+    val = getattr(self.settings.options, option)
+    if isinstance(val, float):
+      str_val = '%0.3g' % val
+    else:
+      str_val = val
+    try:
+      index = opt_lst.index(str_val)
+    except ValueError:
+      index = 0
+    combo.set_active(index)
+
+    combo.set_tooltip_text(tooltip)
     hbox.pack_start(combo, expand=False, fill=False, padding=10)
-    logging.info('got option %s/%s as %s', option, sub_option, val)
-    combo.connect('changed', self._combo_changed, option, sub_option)
+    logging.info('got option %s as %s', option, val)
+    combo.connect('changed', self._combo_changed, option)
 
     vbox.pack_start(hbox, expand=False, fill=False)
 
-  def _toggled(self, widget, option, sub_option):
+  def _toggled(self, widget, option):
     """The checkbox was toggled."""
     if widget.get_active():
       val = 1
     else:
       val = 0
-    self._update_option(option, sub_option, val)
+    self._update_option(option, val, str(val))
 
-  def _combo_changed(self, widget, option, sub_option):
+  def _combo_changed(self, widget, option):
     """The combo box changed."""
     val = widget.get_active()
-    self._update_option(option, sub_option, val)
+    str_val = widget.get_active_text()
+    self._update_option(option, val, str_val)
 
-  def _update_option(self, option, sub_option, val):
+  def _update_option(self, option, val, str_val):
     """Update an option."""
-    config.set(option, sub_option, val)
-    config.write()
-    config.cleanup()
-    LOG.info('Set option %s/%s to %s' % (option, sub_option, val))
-    self.settings.SettingsChanged()
+    if str_val.isdigit():
+      setattr(self.settings.options, option, val)
+      LOG.info('Set option %s to %s' % (option, val))
+    else:
+      setattr(self.settings.options, option, str_val)
+      LOG.info('Set option %s to %s' % (option, str_val))
+    self.settings.options.save()
+    self.settings.settings_changed()
 
 class MiscFrame(CommonFrame):
   """The miscellaneous frame."""
@@ -137,11 +155,48 @@ class MiscFrame(CommonFrame):
   def create_layout(self):
     """Create the box's layout."""
     vbox = gtk.VBox()
-    self._add_check(vbox, _('Swap left-right mouse buttons'), 'devices', 'swap_buttons')
-    self._add_check(vbox, _('Left+right buttons emulates middle mouse button'),
-       'devices', 'emulate_middle')
-    self._add_check(vbox, _('Highly visible click'), 'ui', 'visible-click')
-    self._add_check(vbox, _('Window decoration'), 'ui', 'decorated')
+    self._add_check(
+        vbox, 
+        _('Swap left-right mouse buttons'),
+        _('Swap the left and the right mouse buttons'),
+        'swap_buttons')
+    self._add_check(
+        vbox,
+        _('Left+right buttons emulates middle mouse button'),
+        _('Clicking both mouse buttons emulates the middle mouse button.'),
+       'emulate_middle')
+    self._add_check(
+        vbox,
+        _('Highly visible click'),
+        _('Show a circle when the users clicks.'),
+        'visible_click')
+    self._add_check(
+        vbox,
+        _('Window decoration'),
+        _('Show the normal windows borders'),
+        'decorated')
+    self._add_check(
+        vbox,
+        _('Only key combinations'),
+        _('Show a key only when used with a modifier key (like Control)'),
+        'only_combo')
+
+    sizes = ['1.0', '0.6', '0.8', '1.0', '1.2', '1.4', '1.6', '1.8']
+    self._add_dropdown(
+        vbox,
+        _('Scale:'),
+        _('How much larger or smaller than normal to make key-mon. '
+          'Where 1.0 is normal sized.'),
+        sizes, 'scale')
+
+    self.themes = []
+    theme_dir = os.path.join(os.path.dirname(__file__), 'themes')
+    self.themes = os.listdir(theme_dir)
+    self._add_dropdown(
+        vbox,
+        _('Themes:'),
+        _('Which theme of buttons to show (ex. Apple)'),
+        self.themes, 'theme')
     self.add(vbox)
 
 class ButtonsFrame(CommonFrame):
@@ -154,32 +209,59 @@ class ButtonsFrame(CommonFrame):
     """Create the layout for buttons."""
     vbox = gtk.VBox()
 
-    self._add_check(vbox, _('_Mouse'), 'buttons', 'mouse')
-    self._add_check(vbox, _('_Shift'), 'buttons', 'shift')
-    self._add_check(vbox, _('_Ctrl'), 'buttons', 'ctrl')
-    self._add_check(vbox, _('Meta (_windows keys)'), 'buttons', 'meta')
-    self._add_check(vbox, _('_Alt'), 'buttons', 'alt')
-    self._add_dropdown(vbox, _('Old Keys:'), [0, 1, 2, 3, 4], 'buttons', 'old-keys')
+    self._add_check(
+        vbox,
+        _('_Mouse'),
+        _('Show the mouse.'),
+        'mouse')
+    self._add_check(
+        vbox,
+        _('_Shift'),
+        _('Show the shift key when pressed.'),
+        'shift')
+    self._add_check(
+        vbox,
+        _('_Ctrl'),
+        _('Show the Control key when pressed.'),
+        'ctrl')
+    self._add_check(
+        vbox,
+        _('Meta (_windows keys)'),
+        _('Show the Window\'s key (meta key) when pressed.'),
+        'meta')
+    self._add_check(
+        vbox,
+        _('_Alt'),
+        _('Show the Alt key when pressed.'),
+        'alt')
+    self._add_dropdown(
+        vbox,
+        _('Old Keys:'),
+        _('When typing fast show more than one key typed.'),
+        [0, 1, 2, 3, 4], 'old_keys')
     self.add(vbox)
 
-def _test_settings_changed(widget):
+def _test_settings_changed(unused_widget):
   """Help to test if the settings change message is received."""
-  print widget
   print 'Settings changed'
 
 
-def test_dialog():
+def manually_run_dialog():
   """Test the dialog without starting keymon."""
+  import key_mon
+
   SettingsDialog.register()
   gettext.install('key_mon', 'locale')
   logging.basicConfig(
       level=logging.DEBUG,
       format = '%(filename)s [%(lineno)d]: %(levelname)s %(message)s')
-  dlg = SettingsDialog(None)
+  options = key_mon.create_options()
+  options.read_ini_file('~/.config/key-mon/config')
+  dlg = SettingsDialog(None, options)
   dlg.connect('settings-changed', _test_settings_changed)
   dlg.show_all()
   dlg.run()
   return 0
 
 if __name__ == '__main__':
-  test_dialog()
+  manually_run_dialog()
