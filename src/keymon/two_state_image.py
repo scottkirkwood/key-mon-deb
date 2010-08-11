@@ -27,7 +27,7 @@ pygtk.require('2.0')
 import gtk
 import time
 
-DEFAULT_TIMEOUT_SECS = 0.2
+DEFAULT_TIMEOUT_SECS = 0.5
 
 class TwoStateImage(gtk.Image):
   """Image has a default image (say a blank image) which it goes back to.
@@ -42,6 +42,18 @@ class TwoStateImage(gtk.Image):
     self.defer_to = defer_to
     self.timeout_secs = DEFAULT_TIMEOUT_SECS
     self.switch_to(self.normal)
+
+  def reset_image(self):
+    """Image from pixbufs has changed, reset."""
+    self._switch_to(self.normal)
+
+  def is_pressed(self):
+    return self.current != self.normal
+
+  def reset_time_if_pressed(self):
+    """Start the countdown now."""
+    if self.is_pressed():
+      self.count_down = time.time()
 
   def switch_to(self, name):
     """Switch to image with this name."""
