@@ -20,7 +20,7 @@ Shows their status graphically.
 """
 
 __author__ = 'Scott Kirkwood (scott+keymon@forusers.com)'
-__version__ = '1.3'
+__version__ = '1.4.1'
 
 import logging
 import pygtk
@@ -689,6 +689,9 @@ def create_options():
                   ini_group='buttons', ini_name='old-keys',
                   help=_('How many historical keypresses to show (defaults to %default)'),
                   default=0)
+  opts.add_option(opt_long='--reset', dest='reset', type='bool',
+                  help=_('Reset all options to their defaults.'),
+                  default=None)
 
   opts.add_option(opt_short=None, opt_long=None, type='float',
                   dest='opacity', default=1.0, help='Opacity of window',
@@ -715,7 +718,8 @@ def main():
   """Run the program."""
   opts = create_options()
   opts.read_ini_file('~/.config/key-mon/config')
-  opts.parse_args()
+  desc = _('Usage: %prog [Options...]')
+  opts.parse_args(desc)
 
   if opts.version:
     show_version()
@@ -725,22 +729,37 @@ def main():
         level=logging.DEBUG,
         format = '%(filename)s [%(lineno)d]: %(levelname)s %(message)s')
   if opts.smaller:
-    opts.options.scale = 0.75
+    opts.scale = 0.75
   elif opts.larger:
-    opts.options.scale = 1.25
+    opts.scale = 1.25
+
+  theme_dir = os.path.join(os.path.dirname(__file__), 'themes')
   if opts.list_themes:
     print _('Available themes:')
-    theme_dir = os.path.join(os.path.dirname(__file__), 'themes')
     for entry in sorted(os.listdir(theme_dir)):
       try:
         parser = SafeConfigParser()
-        parser.read(os.path.join(theme_dir, entry, 'config'))
+        theme_config = os.path.join(theme_dir, entry, 'config')
+        parser.read(theme_config)
         desc = parser.get('theme', 'description')
         print '%s: %s' % (entry, desc)
       except:
+        print 'Unable to read theme %r' % theme_config
         pass
     raise SystemExit()
-
+  elif opts.theme:
+    ok_theme = False
+    for entry in sorted(os.listdir(theme_dir)):
+      if opts.theme in entry:
+        ok_theme = True
+        break
+    if not ok_theme:
+      print _('Theme %r does not exist') % opts.theme
+      sys.exit(-1)
+  if opts.reset:
+    print _('Resetting to defaults.')
+    opts.reset_to_defaults()
+    opts.save()
   keymon = KeyMon(opts)
   try:
     gtk.main()
